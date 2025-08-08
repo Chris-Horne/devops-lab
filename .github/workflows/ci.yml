@@ -5,8 +5,13 @@ on:
     branches: [ main ]
   pull_request:
 
+env:
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devops-lab-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devops-lab-frontend
+  GIT_SHA: ${{ github.sha }}
+
 jobs:
-  backend-test-and-build:
+  backend-test-and-push:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,10 +33,20 @@ jobs:
       - name: Run tests
         run: npm test -- --ci
 
-      - name: Build backend Docker image
-        run: docker build -t devops-lab-backend:local .
+      - name: Docker login (only on main)
+        if: github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-  frontend-build:
+      - name: Build backend image
+        run: docker build -t $BACKEND_IMAGE:latest -t $BACKEND_IMAGE:${GIT_SHA::7} .
+
+      - name: Push backend image (only on main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push $BACKEND_IMAGE:latest
+          docker push $BACKEND_IMAGE:${GIT_SHA::7}
+
+  frontend-build-and-push:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -53,5 +68,15 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
-      - name: Build frontend Docker image
-        run: docker build -t devops-lab-frontend:local .
+      - name: Docker login (only on main)
+        if: github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build frontend image
+        run: docker build -t $FRONTEND_IMAGE:latest -t $FRONTEND_IMAGE:${GIT_SHA::7} .
+
+      - name: Push frontend image (only on main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push $FRONTEND_IMAGE:latest
+          docker push $FRONTEND_IMAGE:${GIT_SHA::7}
